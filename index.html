@@ -1,0 +1,51 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>Job Application Tracker</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+  <h1>Job Application Tracker</h1>
+
+  <section class="form-box">
+    <h2>Add Job Application</h2>
+
+    <input id="company" type="text" placeholder="Company Name">
+    <input id="title" type="text" placeholder="Job Title">
+
+    <select id="status">
+      <option value="Applied">Applied</option>
+      <option value="Interview">Interview</option>
+      <option value="Offer">Offer</option>
+      <option value="Rejected">Rejected</option>
+    </select>
+
+    <textarea id="notes" placeholder="Notes"></textarea>
+
+    <button onclick="addApplication()">Add Application</button>
+  </section>
+
+  <section>
+    <h2>My Applications</h2>
+
+    <select id="filter" onchange="displayApplications()">
+      <option value="All">All</option>
+      <option value="Applied">Applied</option>
+      <option value="Interview">Interview</option>
+      <option value="Offer">Offer</option>
+      <option value="Rejected">Rejected</option>
+    </select>
+
+    <div id="applicationList"></div>
+  </section>
+
+  <section>
+    <h2>Job Listings from API</h2>
+    <button onclick="loadJobs()">Load Jobs</button>
+    <div id="jobList"></div>
+  </section>
+
+  <script src="script.js"></script>
+</body>
+</html>

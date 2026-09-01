@@ -1,0 +1,38 @@
+body {
+  font-family: Arial, sans-serif;
+  background-color: #f4f4f4;
+  margin: 30px;
+}
+
+h1 {
+  text-align: center;
+}
+
+.form-box, section {
+  background: white;
+  padding: 20px;
+  margin: 20px auto;
+  max-width: 700px;
+  border-radius: 8px;
+}
+
+input, select, textarea, button {
+  display: block;
+  width: 100%;
+  margin: 10px 0;
+  padding: 10px;
+}
+
+button {
+  background-color: #222;
+  color: white;
+  border: none;
+  cursor: pointer;
+}
+
+.card {
+  background: #eee;
+  padding: 15px;
+  margin: 10px 0;
+  border-radius: 6px;
+}
