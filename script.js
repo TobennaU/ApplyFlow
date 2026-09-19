@@ -1,4 +1,4 @@
-import { supabase } from "./supabaseClient.js";
+import { supabase } from "./Supabaseclient.js";
 
 let currentUser = null;
 
@@ -59,6 +59,7 @@ supabase.auth.onAuthStateChange((_event, session) => {
 
   $("authBox").hidden = Boolean(currentUser);
   $("appBox").hidden = !currentUser;
+  $("signOutBtn").hidden = !currentUser;
   $("userEmail").textContent = currentUser?.email ?? "";
 
   if (currentUser) {
