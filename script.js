@@ -1,4 +1,6 @@
-import { supabase } from "./Supabaseclient.js";
+import * as api from "./api.js";
+
+const { supabase } = api;
 
 let currentUser = null;
 
@@ -23,6 +25,22 @@ function showError(error, fallback) {
   alert(error?.message || fallback);
 }
 
+function showAuthMessage(message, type = "") {
+  const status = $("authMessage");
+  status.textContent = message;
+  status.className = `auth-message ${type}`.trim();
+}
+
+function setAuthLoading(loading, activeButton = null) {
+  const signInButton = $("signInBtn");
+  const signUpButton = $("signUpBtn");
+
+  signInButton.disabled = loading;
+  signUpButton.disabled = loading;
+  signInButton.textContent = loading && activeButton === "signin" ? "Signing in..." : "Sign in";
+  signUpButton.textContent = loading && activeButton === "signup" ? "Creating account..." : "Create account";
+}
+
 
 // authentication
 
@@ -31,26 +49,62 @@ async function signUp() {
   const password = $("authPassword").value;
   const name = $("authName").value.trim();
 
-  const { error } = await supabase.auth.signUp({
-    email,
-    password,
-    options: { data: { name } },
-  });
+  if (!name || !email || !password) {
+    showAuthMessage("Enter your name, email, and password to create an account.", "error");
+    return;
+  }
 
-  if (error) return showError(error, "Could not sign up.");
-  alert("Account created. Check your email if confirmation is turned on.");
+  if (password.length < 6) {
+    showAuthMessage("Your password must be at least 6 characters.", "error");
+    return;
+  }
+
+  setAuthLoading(true, "signup");
+  showAuthMessage("");
+
+  try {
+    const result = await api.signUp(email, password, name);
+    if (result.session) {
+      showAuthMessage("Your account is ready.", "success");
+    } else {
+      showAuthMessage("Account created. Check your email to confirm your address, then sign in.", "success");
+    }
+  } catch (error) {
+    console.error(error);
+    showAuthMessage(error.message || "Could not create your account.", "error");
+  } finally {
+    setAuthLoading(false);
+  }
 }
 
 async function signIn() {
   const email = $("authEmail").value.trim();
   const password = $("authPassword").value;
 
-  const { error } = await supabase.auth.signInWithPassword({ email, password });
-  if (error) showError(error, "Could not sign in.");
+  if (!email || !password) {
+    showAuthMessage("Enter your email and password to sign in.", "error");
+    return;
+  }
+
+  setAuthLoading(true, "signin");
+  showAuthMessage("");
+
+  try {
+    await api.signIn(email, password);
+  } catch (error) {
+    console.error(error);
+    showAuthMessage(error.message || "Could not sign in.", "error");
+  } finally {
+    setAuthLoading(false);
+  }
 }
 
 async function signOut() {
-  await supabase.auth.signOut();
+  try {
+    await api.signOut();
+  } catch (error) {
+    showError(error, "Could not sign out.");
+  }
 }
 
 // runs on page load, login, logout and token refresh
@@ -63,6 +117,7 @@ supabase.auth.onAuthStateChange((_event, session) => {
   $("userEmail").textContent = currentUser?.email ?? "";
 
   if (currentUser) {
+    showAuthMessage("");
     loadApplications();
   } else {
     $("applicationList").replaceChildren();
@@ -84,15 +139,16 @@ async function addApplication() {
     return;
   }
 
-  const { error } = await supabase.from("applications").insert({
-    user_id: currentUser.id,
-    company,
-    job_title: title,
-    application_status: status,
-    notes,
-  });
-
-  if (error) return showError(error, "Could not save application.");
+  try {
+    await api.addApplication({
+      company,
+      job_title: title,
+      application_status: status,
+      notes,
+    });
+  } catch (error) {
+    return showError(error, "Could not save application.");
+  }
 
   $("company").value = "";
   $("title").value = "";
@@ -104,19 +160,12 @@ async function addApplication() {
 async function loadApplications() {
   const filter = $("filter").value;
 
-  let query = supabase
-    .from("applications")
-    .select("id, company, job_title, application_status, notes, application_date")
-    .order("created_at", { ascending: false });
-
-  if (filter !== "All") {
-    query = query.eq("application_status", filter);
+  try {
+    const applications = await api.listApplications(filter === "All" ? null : filter);
+    displayApplications(applications);
+  } catch (error) {
+    showError(error, "Could not load applications.");
   }
-
-  const { data, error } = await query;
-  if (error) return showError(error, "Could not load applications.");
-
-  displayApplications(data);
 }
 
 function displayApplications(apps) {
@@ -145,22 +194,24 @@ function displayApplications(apps) {
 }
 
 async function deleteApplication(id) {
-  const { error } = await supabase.from("applications").delete().eq("id", id);
-  if (error) return showError(error, "Could not delete application.");
-  loadApplications();
+  try {
+    await api.deleteApplication(id);
+    loadApplications();
+  } catch (error) {
+    showError(error, "Could not delete application.");
+  }
 }
 
 
 // job listings 
 
 async function loadJobs() {
-  const { data, error } = await supabase
-    .from("job_listings")
-    .select("id, title, company, location")
-    .order("created_at", { ascending: false })
-    .limit(20);
-
-  if (error) return showError(error, "Could not load jobs.");
+  let data;
+  try {
+    data = await api.listJobs({ limit: 20 });
+  } catch (error) {
+    return showError(error, "Could not load jobs.");
+  }
 
   const jobList = $("jobList");
   jobList.replaceChildren();
@@ -185,17 +236,16 @@ async function loadJobs() {
 }
 
 async function saveJob(job) {
-  const { error } = await supabase.from("saved_jobs").insert({
-    user_id: currentUser.id,
-    job_listing_id: job.id,
-  });
-
-  // 23505 is a duplicate, which just means they already saved it
-  if (error && error.code !== "23505") {
-    return showError(error, "Could not save job.");
+  try {
+    await api.saveJob(job.id);
+    alert("Job saved.");
+  } catch (error) {
+    if (error.message?.toLowerCase().includes("duplicate")) {
+      alert("Already in your saved jobs.");
+      return;
+    }
+    showError(error, "Could not save job.");
   }
-
-  alert(error ? "Already in your saved jobs." : "Job saved.");
 }
 
 
@@ -205,32 +255,18 @@ async function uploadResume() {
   const file = $("resumeFile").files[0];
   if (!file) return alert("Choose a file first.");
 
-  // the first folder has to be the user's id or the storage policy rejects it
-  const path = `${currentUser.id}/${Date.now()}-${file.name}`;
-
-  const { error: uploadError } = await supabase.storage
-    .from("resumes")
-    .upload(path, file);
-
-  if (uploadError) return showError(uploadError, "Upload failed.");
-
-  const { error } = await supabase.from("resumes").insert({
-    user_id: currentUser.id,
-    file_name: file.name,
-    file_path: path,
-  });
-
-  if (error) return showError(error, "Could not record resume.");
-  alert("Resume uploaded.");
+  try {
+    await api.uploadResume(file);
+    $("resumeFile").value = "";
+    alert("Resume uploaded.");
+  } catch (error) {
+    showError(error, "Upload failed.");
+  }
 }
 
 // private bucket, so links have to be generated and expire
 export async function getResumeLink(filePath) {
-  const { data, error } = await supabase.storage
-    .from("resumes")
-    .createSignedUrl(filePath, 60);
-  if (error) throw error;
-  return data.signedUrl;
+  return api.getResumeUrl(filePath);
 }
 
 

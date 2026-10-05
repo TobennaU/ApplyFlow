@@ -13,6 +13,7 @@
 }
 
 * { box-sizing: border-box; }
+[hidden] { display: none !important; }
 html { scroll-behavior: smooth; }
 
 body {
@@ -142,6 +143,10 @@ textarea { min-height: 112px; padding: 13px 14px; resize: vertical; }
 input::placeholder, textarea::placeholder { color: #929b96; }
 input:focus, select:focus, textarea:focus { border-color: var(--green); box-shadow: 0 0 0 3px rgba(32,79,63,.1); }
 .auth-buttons { margin-top: 26px; display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+.auth-message { min-height: 22px; margin: 16px 0 0; color: var(--muted); font-size: .88rem; line-height: 1.5; }
+.auth-message.error { color: var(--danger); }
+.auth-message.success { color: var(--green); }
+.button:disabled { cursor: wait; opacity: .65; transform: none; }
 
 .app-layout { padding-bottom: 80px; }
 .hero {

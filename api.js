@@ -1,16 +1,6 @@
-// api.js: wrapper around Supabase for the job tracker UI.
-// Load it in your HTML with:  <script type="module" src="app.js"></script>
-// and in app.js:               import * as api from './api.js'
-
-import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
-
-// Find both in Supabase dashboard > Project Settings > API.
-// The anon key is safe in the browser because RLS protects your data.
-// NEVER put the service_role key in frontend code.
-const SUPABASE_URL = 'https://YOUR-PROJECT.supabase.co'
-const SUPABASE_ANON_KEY = 'YOUR-ANON-KEY'
-
-export const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY)
+// Keep one client for the whole app so auth sessions stay in sync.
+export { supabase } from './Supabaseclient.js'
+import { supabase } from './Supabaseclient.js'
 
 // Every function returns the data or throws an Error with a readable message.
 function unwrap({ data, error }) {
