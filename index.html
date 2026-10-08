@@ -132,15 +132,21 @@
         <section class="panel applications-panel">
           <div class="section-heading application-heading">
             <div><p class="section-kicker">YOUR PIPELINE</p><h2>Applications</h2></div>
-            <div class="filter-wrap">
-              <label for="filter">Show</label>
-              <select id="filter">
-                <option value="All">All applications</option>
-                <option value="Applied">Applied</option>
-                <option value="Interview">Interview</option>
-                <option value="Offer">Offers</option>
-                <option value="Rejected">Rejected</option>
-              </select>
+            <div class="application-tools">
+              <div class="search-wrap">
+                <label for="applicationSearch">Search</label>
+                <input id="applicationSearch" type="search" placeholder="Company or job title">
+              </div>
+              <div class="filter-wrap">
+                <label for="filter">Show</label>
+                <select id="filter">
+                  <option value="All">All applications</option>
+                  <option value="Applied">Applied</option>
+                  <option value="Interview">Interview</option>
+                  <option value="Offer">Offers</option>
+                  <option value="Rejected">Rejected</option>
+                </select>
+              </div>
             </div>
           </div>
           <div id="applicationList" class="card-grid" aria-live="polite">
@@ -169,6 +175,41 @@
         </section>
       </div>
     </main>
+
+    <dialog id="editApplicationDialog" class="edit-dialog">
+      <form id="editApplicationForm" method="dialog">
+        <div class="dialog-heading">
+          <div><p class="section-kicker">UPDATE ENTRY</p><h2>Edit application</h2></div>
+          <button id="closeEditBtn" class="dialog-close" type="button" aria-label="Close edit form">&times;</button>
+        </div>
+        <div class="field-group">
+          <label for="editCompany">Company</label>
+          <input id="editCompany" type="text" required>
+        </div>
+        <div class="field-group">
+          <label for="editTitle">Job title</label>
+          <input id="editTitle" type="text" required>
+        </div>
+        <div class="field-group">
+          <label for="editStatus">Current status</label>
+          <select id="editStatus">
+            <option value="Applied">Applied</option>
+            <option value="Interview">Interview</option>
+            <option value="Offer">Offer</option>
+            <option value="Rejected">Rejected</option>
+          </select>
+        </div>
+        <div class="field-group">
+          <label for="editNotes">Notes</label>
+          <textarea id="editNotes" rows="4"></textarea>
+        </div>
+        <p id="editMessage" class="form-message" role="status" aria-live="polite"></p>
+        <div class="dialog-actions">
+          <button id="cancelEditBtn" class="button button-secondary" type="button">Cancel</button>
+          <button id="saveEditBtn" class="button button-primary" type="submit">Save changes</button>
+        </div>
+      </form>
+    </dialog>
 
     <footer><span>ApplyFlow</span><p>A simpler way to manage the job search.</p></footer>
   </div>

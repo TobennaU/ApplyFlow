@@ -3,6 +3,8 @@ import * as api from "./api.js";
 const { supabase } = api;
 
 let currentUser = null;
+let loadedApplications = [];
+let editingApplicationId = null;
 
 const $ = (id) => document.getElementById(id);
 
@@ -120,6 +122,7 @@ supabase.auth.onAuthStateChange((_event, session) => {
     showAuthMessage("");
     loadApplications();
   } else {
+    loadedApplications = [];
     $("applicationList").replaceChildren();
     $("jobList").replaceChildren();
   }
@@ -158,14 +161,26 @@ async function addApplication() {
 }
 
 async function loadApplications() {
-  const filter = $("filter").value;
-
   try {
-    const applications = await api.listApplications(filter === "All" ? null : filter);
-    displayApplications(applications);
+    loadedApplications = await api.listApplications();
+    filterApplications();
   } catch (error) {
     showError(error, "Could not load applications.");
   }
+}
+
+// Search and status filtering happen locally so the list updates immediately.
+function filterApplications() {
+  const status = $("filter").value;
+  const search = $("applicationSearch").value.trim().toLowerCase();
+
+  const matches = loadedApplications.filter((app) => {
+    const matchesStatus = status === "All" || app.application_status === status;
+    const searchableText = `${app.company} ${app.job_title}`.toLowerCase();
+    return matchesStatus && searchableText.includes(search);
+  });
+
+  displayApplications(matches);
 }
 
 function displayApplications(apps) {
@@ -185,20 +200,81 @@ function displayApplications(apps) {
     card.appendChild(labelled("Applied", app.application_date));
     card.appendChild(labelled("Notes", app.notes));
 
-    const del = el("button", "Delete");
+    const actions = el("div", undefined, "card-actions");
+
+    const edit = el("button", "Edit", "edit-button");
+    edit.addEventListener("click", () => openEditApplication(app));
+    actions.appendChild(edit);
+
+    const del = el("button", "Delete", "delete-button");
     del.addEventListener("click", () => deleteApplication(app.id));
-    card.appendChild(del);
+    actions.appendChild(del);
+    card.appendChild(actions);
 
     list.appendChild(card);
   }
 }
 
 async function deleteApplication(id) {
+  const application = loadedApplications.find((app) => app.id === id);
+  const label = application ? `${application.job_title} at ${application.company}` : "this application";
+
+  if (!window.confirm(`Delete ${label}? This cannot be undone.`)) return;
+
   try {
     await api.deleteApplication(id);
     loadApplications();
   } catch (error) {
     showError(error, "Could not delete application.");
+  }
+}
+
+function openEditApplication(application) {
+  editingApplicationId = application.id;
+  $("editCompany").value = application.company;
+  $("editTitle").value = application.job_title;
+  $("editStatus").value = application.application_status;
+  $("editNotes").value = application.notes ?? "";
+  $("editMessage").textContent = "";
+  $("editApplicationDialog").showModal();
+}
+
+function closeEditApplication() {
+  editingApplicationId = null;
+  $("editApplicationDialog").close();
+}
+
+async function saveApplicationChanges(event) {
+  event.preventDefault();
+
+  const company = $("editCompany").value.trim();
+  const title = $("editTitle").value.trim();
+  const saveButton = $("saveEditBtn");
+
+  if (!company || !title) {
+    $("editMessage").textContent = "Enter both a company and job title.";
+    return;
+  }
+
+  saveButton.disabled = true;
+  saveButton.textContent = "Saving...";
+  $("editMessage").textContent = "";
+
+  try {
+    await api.updateApplication(editingApplicationId, {
+      company,
+      job_title: title,
+      application_status: $("editStatus").value,
+      notes: $("editNotes").value.trim(),
+    });
+    closeEditApplication();
+    await loadApplications();
+  } catch (error) {
+    console.error(error);
+    $("editMessage").textContent = error.message || "Could not update the application.";
+  } finally {
+    saveButton.disabled = false;
+    saveButton.textContent = "Save changes";
   }
 }
 
@@ -274,6 +350,10 @@ $("signUpBtn").addEventListener("click", signUp);
 $("signInBtn").addEventListener("click", signIn);
 $("signOutBtn").addEventListener("click", signOut);
 $("addApplicationBtn").addEventListener("click", addApplication);
-$("filter").addEventListener("change", loadApplications);
+$("filter").addEventListener("change", filterApplications);
+$("applicationSearch").addEventListener("input", filterApplications);
+$("editApplicationForm").addEventListener("submit", saveApplicationChanges);
+$("closeEditBtn").addEventListener("click", closeEditApplication);
+$("cancelEditBtn").addEventListener("click", closeEditApplication);
 $("loadJobsBtn").addEventListener("click", loadJobs);
 $("uploadResumeBtn").addEventListener("click", uploadResume);

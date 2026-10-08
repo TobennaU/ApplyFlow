@@ -189,14 +189,37 @@ input:focus, select:focus, textarea:focus { border-color: var(--green); box-shad
 
 .applications-panel { margin-top: 24px; }
 .application-heading { align-items: flex-end; }
+.application-tools { display: flex; align-items: flex-end; gap: 12px; }
+.search-wrap { width: 240px; }
+.search-wrap label { display: block; margin-bottom: 7px; font-size: .82rem; font-weight: 700; }
+.search-wrap input, .filter-wrap select { height: 42px; }
 .filter-wrap { width: 200px; }
-.filter-wrap select { height: 42px; }
 .card-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 16px; }
 .card { min-width: 0; padding: 22px; border: 1px solid var(--line); border-radius: 12px; background: white; }
 .card h3 { margin: 0 0 18px; font-family: "Manrope", sans-serif; font-size: 1.1rem; }
 .card p { margin: 9px 0; color: var(--muted); font-size: .9rem; overflow-wrap: anywhere; }
 .card p b { color: var(--ink); }
-.card button { margin-top: 14px; padding: 8px 12px; border: 1px solid #e1c4c1; border-radius: 7px; color: var(--danger); background: #fff7f6; cursor: pointer; font-weight: 700; }
+.card-actions { margin-top: 16px; display: flex; gap: 8px; }
+.card button { padding: 8px 12px; border-radius: 7px; cursor: pointer; font-weight: 700; }
+.card .edit-button { color: var(--green); border: 1px solid #b9c9c1; background: #f4f8f5; }
+.card .delete-button { color: var(--danger); border: 1px solid #e1c4c1; background: #fff7f6; }
+
+.edit-dialog {
+  width: min(520px, calc(100% - 28px));
+  padding: 0;
+  border: 1px solid var(--line);
+  border-radius: 18px;
+  color: var(--ink);
+  background: var(--paper);
+  box-shadow: 0 25px 80px rgba(23,35,31,.25);
+}
+.edit-dialog::backdrop { background: rgba(15,27,23,.58); backdrop-filter: blur(3px); }
+.edit-dialog form { padding: 32px; }
+.dialog-heading { margin-bottom: 26px; display: flex; align-items: flex-start; justify-content: space-between; }
+.dialog-heading h2 { margin: 6px 0 0; font-family: "Manrope", sans-serif; letter-spacing: -.04em; }
+.dialog-close { width: 36px; height: 36px; border: 0; border-radius: 50%; color: var(--muted); background: var(--soft); cursor: pointer; font-size: 1.35rem; }
+.dialog-actions { display: flex; justify-content: flex-end; gap: 10px; }
+.form-message { min-height: 20px; margin: 0 0 12px; color: var(--danger); font-size: .86rem; }
 
 .empty-state { grid-column: 1 / -1; padding: 56px 20px; border: 1px dashed #c7cec6; border-radius: 12px; color: var(--muted); background: #fafbf7; text-align: center; }
 .empty-state > span { color: var(--green); font-size: 1.8rem; }
@@ -240,6 +263,8 @@ footer p { margin: 0; }
   .hero { min-height: 390px; padding: 48px 22px; align-items: flex-start; flex-direction: column; justify-content: flex-end; }
   .hero h1 { font-size: 2.7rem; }
   .application-heading { align-items: flex-start; flex-direction: column; }
-  .filter-wrap { width: 100%; }
+  .application-tools { width: 100%; align-items: stretch; flex-direction: column; }
+  .filter-wrap, .search-wrap { width: 100%; }
+  .edit-dialog form { padding: 24px; }
   footer { align-items: flex-start; flex-direction: column; gap: 6px; }
 }
