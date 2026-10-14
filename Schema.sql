@@ -205,3 +205,31 @@ create policy "resumes: delete own files" on storage.objects
     bucket_id = 'resumes'
     and (select auth.uid())::text = (storage.foldername(name))[1]
   );
+
+  -- AI resume feedback
+create table public.resume_feedback (
+  id              uuid primary key default gen_random_uuid(),
+  user_id         uuid not null references public.profiles (id) on delete cascade,
+  resume_id       uuid not null references public.resumes (id) on delete cascade,
+  application_id  uuid not null references public.applications (id) on delete cascade,
+  recommendations jsonb not null,
+  created_at      timestamptz not null default now(),
+  unique (resume_id, application_id)
+);
+
+create index resume_feedback_user_id_idx on public.resume_feedback (user_id);
+
+alter table public.resume_feedback enable row level security;
+
+-- written by the Edge Function (service role), so no insert policy
+create policy "own feedback: select" on public.resume_feedback
+  for select to authenticated using ((select auth.uid()) = user_id);
+
+-- api.js uploads with upsert: true, which needs an update policy to
+-- overwrite a resume with the same filename (e.g. after editing it)
+create policy "resumes: update own files" on storage.objects
+  for update to authenticated
+  using (
+    bucket_id = 'resumes'
+    and (select auth.uid())::text = (storage.foldername(name))[1]
+  );

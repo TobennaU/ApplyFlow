@@ -88,15 +88,24 @@ export async function deleteApplication(id) {
 
 // ---------- Job listings ----------
 
-export async function listJobs({ search = '', limit = 20 } = {}) {
+// Asks the 'fetch-jobs' Edge Function to pull new postings from Remotive
+// into job_listings. It skips the fetch if the listings are recent.
+export async function refreshJobs() {
+  const { error } = await supabase.functions.invoke('fetch-jobs')
+  if (error) throw new Error(error.message)
+}
+
+export async function listJobs({ search = '', limit = 20, source = '' } = {}) {
   let q = supabase
     .from('job_listings')
     .select('*')
     .order('created_at', { ascending: false })
     .limit(limit)
+  if (source) q = q.eq('source', source)
   if (search) q = q.or(`title.ilike.%${search}%,company.ilike.%${search}%`)
   return unwrap(await q)
 }
+
 
 // fields: { title, company, location?, description?, job_url?, source? }
 export async function addJob(fields) {
@@ -144,17 +153,41 @@ export async function listResumes() {
   )
 }
 
+// pdf.js is loaded by a <script> tag in index.html and exposes pdfjsLib.
+async function extractPdfText(file) {
+  pdfjsLib.GlobalWorkerOptions.workerSrc =
+    'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js'
+
+  const pdf = await pdfjsLib.getDocument({ data: await file.arrayBuffer() }).promise
+  let text = ''
+  for (let i = 1; i <= pdf.numPages; i++) {
+    const page = await pdf.getPage(i)
+    const content = await page.getTextContent()
+    text += content.items.map((item) => item.str).join(' ') + '\n'
+  }
+  return text.trim()
+}
+
 // Uploads the file to the private 'resumes' bucket at <user_id>/<filename>
-// and saves a row in the resumes table.
-// Keyword matching needs text, so .txt/.md files are read in the browser.
-// For PDFs, pass the extracted text as parsedText (see README notes).
+// and saves a row in the resumes table. Text is extracted from PDFs and
+// .txt/.md files so the AI can read it; other formats save with no text.
 export async function uploadResume(file, parsedText = null) {
   const user = await requireUser()
   const filePath = `${user.id}/${file.name}`
 
-  const isPlainText =
-    file.type.startsWith('text/') || /\.(txt|md)$/i.test(file.name)
-  if (parsedText === null && isPlainText) parsedText = await file.text()
+  if (parsedText === null) {
+    const isPlainText =
+      file.type.startsWith('text/') || /\.(txt|md)$/i.test(file.name)
+    if (isPlainText) {
+      parsedText = await file.text()
+    } else if (file.type === 'application/pdf') {
+      try {
+        parsedText = await extractPdfText(file)
+      } catch (err) {
+        console.error('PDF text extraction failed:', err)
+      }
+    }
+  }
 
   const { error: uploadError } = await supabase.storage
     .from('resumes')
@@ -194,16 +227,15 @@ export async function getResumeUrl(filePath, expiresInSeconds = 60) {
   return data.signedUrl
 }
 
-// ---------- Match scoring ----------
+// ---------- AI resume feedback ----------
 
-// Calls the 'match-resume' Edge Function, which computes and saves the score.
-// Returns { match_score, analysis: { matched, missing, ... } }
-export async function runMatch(resumeId, jobListingId) {
-  const { data, error } = await supabase.functions.invoke('match-resume', {
-    body: { resume_id: resumeId, job_listing_id: jobListingId },
+// Calls the 'analyze-resume' Edge Function, which saves its result to
+// resume_feedback. Returns { recommendations: { match_score, strengths, gaps, suggestions } }
+export async function getFeedback(resumeId, applicationId) {
+  const { data, error } = await supabase.functions.invoke('analyze-resume', {
+    body: { resume_id: resumeId, application_id: applicationId },
   })
   if (error) {
-    // Try to surface the function's own error message
     let message = error.message
     try {
       const body = await error.context.json()
@@ -212,15 +244,4 @@ export async function runMatch(resumeId, jobListingId) {
     throw new Error(message)
   }
   return data
-}
-
-// Previously computed scores (read-only from the client).
-export async function getMatches(resumeId) {
-  return unwrap(
-    await supabase
-      .from('match_results')
-      .select('id, match_score, analysis, created_at, job_listings(*)')
-      .eq('resume_id', resumeId)
-      .order('match_score', { ascending: false })
-  )
 }

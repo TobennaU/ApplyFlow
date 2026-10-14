@@ -268,3 +268,9 @@ footer p { margin: 0; }
   .edit-dialog form { padding: 24px; }
   footer { align-items: flex-start; flex-direction: column; gap: 6px; }
 }
+
+.card .ai-button { color: var(--green); border: 1px solid var(--green); background: transparent; }
+.card-actions { flex-wrap: wrap; }
+.feedback-box .score { color: var(--dark-green); font-weight: 700; }
+.feedback-box b { display: block; margin-top: 10px; color: var(--muted); font-size: .8rem; text-transform: uppercase; letter-spacing: .04em; }
+.feedback-box ul { margin: 6px 0 0; padding-left: 18px; font-size: .9rem; line-height: 1.5; }

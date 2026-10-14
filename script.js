@@ -210,6 +210,11 @@ function displayApplications(apps) {
     del.addEventListener("click", () => deleteApplication(app.id));
     actions.appendChild(del);
     card.appendChild(actions);
+    const feedbackBtn = el("button", "Get AI Feedback", "ai-button");
+    const feedbackBox = el("div", undefined, "feedback-box");
+    feedbackBtn.addEventListener("click", () => getFeedback(app.id, feedbackBtn, feedbackBox));
+    actions.appendChild(feedbackBtn);
+    card.appendChild(feedbackBox);
 
     list.appendChild(card);
   }
@@ -282,9 +287,21 @@ async function saveApplicationChanges(event) {
 // job listings 
 
 async function loadJobs() {
+  // pull in new postings first (the function skips this if they're recent)
+  try {
+    await api.refreshJobs();
+  } catch (error) {
+    console.error("Could not refresh job listings:", error);
+  }
+
   let data;
   try {
-    data = await api.listJobs({ limit: 20 });
+    // a few from each source, so one source's newest batch doesn't hide the other
+    const batches = await Promise.all([
+      api.listJobs({ limit: 10, source: "usajobs" }),
+      api.listJobs({ limit: 10, source: "remotive" }),
+    ]);
+    data = batches.flat();
   } catch (error) {
     return showError(error, "Could not load jobs.");
   }
@@ -302,6 +319,14 @@ async function loadJobs() {
     card.appendChild(el("h3", job.title));
     card.appendChild(labelled("Company", job.company));
     card.appendChild(labelled("Location", job.location));
+
+      if (job.job_url?.startsWith("https://")) {
+      const sourceName = job.source === "usajobs" ? "USAJOBS" : "Remotive";
+      const link = el("a", `View posting on ${sourceName}`); link.href = job.job_url;
+      link.target = "_blank";
+      link.rel = "noopener noreferrer";
+      card.appendChild(link);
+    }
 
     const save = el("button", "Save Job");
     save.addEventListener("click", () => saveJob(job));
@@ -345,6 +370,42 @@ export async function getResumeLink(filePath) {
   return api.getResumeUrl(filePath);
 }
 
+// ai feedback
+
+async function getFeedback(applicationId, button, box) {
+  button.disabled = true;
+  button.textContent = "Thinking...";
+  box.replaceChildren();
+
+  try {
+    const resumes = await api.listResumes();
+    if (resumes.length === 0) {
+      alert("Upload a resume first.");
+      return;
+    }
+
+    // listResumes is newest first, so this uses the most recent upload
+    const { recommendations: rec } = await api.getFeedback(resumes[0].id, applicationId);
+
+    box.appendChild(el("p", `Match score: ${rec.match_score}/100`, "score"));
+    for (const [title, items] of [
+      ["Strengths", rec.strengths],
+      ["Gaps", rec.gaps],
+      ["Suggestions", rec.suggestions],
+    ]) {
+      if (!items?.length) continue;
+      box.appendChild(el("b", title));
+      const ul = document.createElement("ul");
+      for (const item of items) ul.appendChild(el("li", item));
+      box.appendChild(ul);
+    }
+  } catch (error) {
+    showError(error, "Could not get feedback.");
+  } finally {
+    button.disabled = false;
+    button.textContent = "Get AI Feedback";
+  }
+}
 
 $("signUpBtn").addEventListener("click", signUp);
 $("signInBtn").addEventListener("click", signIn);
@@ -357,3 +418,5 @@ $("closeEditBtn").addEventListener("click", closeEditApplication);
 $("cancelEditBtn").addEventListener("click", closeEditApplication);
 $("loadJobsBtn").addEventListener("click", loadJobs);
 $("uploadResumeBtn").addEventListener("click", uploadResume);
+
+
