@@ -36,7 +36,7 @@
             </div>
             <div class="feature-item">
               <span class="feature-icon">02</span>
-              <div><strong>Stay prepared</strong><p>Keep notes and resumes ready for the next step.</p></div>
+              <div><strong>Stay prepared</strong><p>Keep notes, reminders, and resumes ready for the next step.</p></div>
             </div>
             <div class="feature-item">
               <span class="feature-icon">03</span>
@@ -68,6 +68,25 @@
             <button id="signUpBtn" class="button button-secondary" type="button">Create account</button>
           </div>
           <p id="authMessage" class="auth-message" role="status" aria-live="polite"></p>
+        </div>
+      </section>
+
+      <section id="mfaBox" class="auth-layout mfa-layout" hidden>
+        <div class="auth-card">
+          <div class="auth-heading">
+            <span class="mini-mark">AF</span>
+            <h2>Two-factor verification</h2>
+            <p>Enter the 6-digit code from your authenticator app to finish signing in.</p>
+          </div>
+          <div class="field-group">
+            <label for="mfaCode">Verification code</label>
+            <input id="mfaCode" type="text" inputmode="numeric" autocomplete="one-time-code" maxlength="6" placeholder="123456">
+          </div>
+          <div class="auth-buttons">
+            <button id="mfaVerifyBtn" class="button button-primary" type="button">Verify</button>
+            <button id="mfaCancelBtn" class="button button-secondary" type="button">Cancel</button>
+          </div>
+          <p id="mfaMessage" class="auth-message" role="status" aria-live="polite"></p>
         </div>
       </section>
 
@@ -105,9 +124,25 @@
                   <option value="Rejected">Rejected</option>
                 </select>
               </div>
+              <div class="field-group">
+                <label for="appLocation">Location <span>optional</span></label>
+                <input id="appLocation" type="text" placeholder="City, state, or Remote">
+              </div>
+              <div class="field-group">
+                <label for="interviewDate">Interview date <span>optional</span></label>
+                <input id="interviewDate" type="date">
+              </div>
+              <div class="field-group">
+                <label for="followUpDate">Follow-up date <span>optional</span></label>
+                <input id="followUpDate" type="date">
+              </div>
+              <div class="field-group field-wide">
+                <label for="appDescription">Job description <span>paste the posting for better AI feedback</span></label>
+                <textarea id="appDescription" rows="4" placeholder="Paste the job posting here."></textarea>
+              </div>
               <div class="field-group field-wide">
                 <label for="notes">Notes</label>
-                <textarea id="notes" rows="4" placeholder="Add a recruiter name, next step, or anything you want to remember."></textarea>
+                <textarea id="notes" rows="3" placeholder="Add a recruiter name, next step, or anything you want to remember."></textarea>
               </div>
             </div>
             <button id="addApplicationBtn" class="button button-primary" type="button">Save application</button>
@@ -118,15 +153,38 @@
               <div><p class="section-kicker">DOCUMENTS</p><h2>Resume library</h2></div>
               <span class="step-badge">02</span>
             </div>
-            <p class="panel-copy">Upload the resume you are currently using so it stays close to your applications.</p>
+            <p class="panel-copy">Upload your resume, then pick which one the AI should use.</p>
             <label class="file-drop" for="resumeFile">
               <span class="upload-icon" aria-hidden="true">&#8593;</span>
               <strong>Choose a resume</strong>
-              <span>PDF or DOCX recommended</span>
+              <span>PDF or Word (.docx) with selectable text</span>
             </label>
-            <input id="resumeFile" class="visually-hidden" type="file" accept=".pdf,.doc,.docx">
+            <input id="resumeFile" class="visually-hidden" type="file" accept=".pdf,.docx">
             <button id="uploadResumeBtn" class="button button-secondary" type="button">Upload resume</button>
+            <p id="resumeStatus" class="resume-status" role="status" aria-live="polite"></p>
+            <ul id="resumeList" class="resume-list"></ul>
           </aside>
+        </div>
+
+        <div class="insight-grid">
+          <section class="panel">
+            <div class="section-heading">
+              <div><p class="section-kicker">REMINDERS</p><h2>Coming up</h2></div>
+            </div>
+            <div id="upcomingList"></div>
+            <div class="reminder-actions">
+              <button id="downloadCalendarBtn" class="button button-secondary" type="button">Add to calendar (.ics)</button>
+              <button id="enableRemindersBtn" class="button button-quiet" type="button">Enable browser reminders</button>
+            </div>
+            <p id="reminderMessage" class="resume-status" role="status" aria-live="polite"></p>
+          </section>
+
+          <section class="panel">
+            <div class="section-heading">
+              <div><p class="section-kicker">INSIGHTS</p><h2>Your search at a glance</h2></div>
+            </div>
+            <div id="insights"></div>
+          </section>
         </div>
 
         <section class="panel applications-panel">
@@ -135,7 +193,7 @@
             <div class="application-tools">
               <div class="search-wrap">
                 <label for="applicationSearch">Search</label>
-                <input id="applicationSearch" type="search" placeholder="Company or job title">
+                <input id="applicationSearch" type="search" placeholder="Company, title, location, description">
               </div>
               <div class="filter-wrap">
                 <label for="filter">Show</label>
@@ -158,11 +216,22 @@
           </div>
         </section>
 
+        <section class="panel applications-panel">
+          <div class="section-heading">
+            <div><p class="section-kicker">BOOKMARKS</p><h2>Saved jobs</h2></div>
+          </div>
+          <div id="savedJobsList" class="card-grid" aria-live="polite"></div>
+        </section>
+
         <section class="jobs-section">
           <div class="jobs-intro">
             <p class="section-kicker">DISCOVER</p>
             <h2>Explore job listings</h2>
-            <p>Browse the latest roles in the database and save the ones that catch your attention.</p>
+            <p>Browse the latest roles, or search by keyword and location, and save the ones that catch your attention.</p>
+            <div class="job-search">
+              <input id="jobKeyword" type="search" placeholder="Keyword (for example: analyst)">
+              <input id="jobLocation" type="search" placeholder="Location (for example: Tennessee)">
+            </div>
             <button id="loadJobsBtn" class="button button-dark" type="button">Browse listings <span aria-hidden="true">&#8594;</span></button>
           </div>
           <div id="jobList" class="job-list" aria-live="polite">
@@ -172,6 +241,28 @@
               <p>Load available jobs to start exploring.</p>
             </div>
           </div>
+        </section>
+
+        <section class="panel applications-panel security-panel">
+          <div class="section-heading">
+            <div><p class="section-kicker">ACCOUNT</p><h2>Two-factor authentication</h2></div>
+          </div>
+          <p id="securityStatus" class="panel-copy"></p>
+          <div id="mfaEnroll" hidden>
+            <p class="panel-copy">Scan this code with an authenticator app such as Google Authenticator, then enter the 6-digit code it shows.</p>
+            <img id="mfaQr" class="mfa-qr" alt="QR code for your authenticator app">
+            <p class="panel-copy">Can't scan it? Enter this key manually: <code id="mfaSecret" class="mfa-secret"></code></p>
+            <div class="field-group">
+              <label for="mfaSetupCode">6-digit code</label>
+              <input id="mfaSetupCode" type="text" inputmode="numeric" maxlength="6" placeholder="123456">
+            </div>
+            <button id="confirmMfaBtn" class="button button-primary" type="button">Confirm and turn on</button>
+          </div>
+          <div class="security-actions">
+            <button id="enableMfaBtn" class="button button-secondary" type="button">Turn on two-factor authentication</button>
+            <button id="disableMfaBtn" class="button button-quiet" type="button" hidden>Turn off</button>
+          </div>
+          <p id="securityMessage" class="resume-status" role="status" aria-live="polite"></p>
         </section>
       </div>
     </main>
@@ -200,8 +291,24 @@
           </select>
         </div>
         <div class="field-group">
+          <label for="editLocation">Location</label>
+          <input id="editLocation" type="text">
+        </div>
+        <div class="field-group">
+          <label for="editInterview">Interview date</label>
+          <input id="editInterview" type="date">
+        </div>
+        <div class="field-group">
+          <label for="editFollowUp">Follow-up date</label>
+          <input id="editFollowUp" type="date">
+        </div>
+        <div class="field-group">
+          <label for="editDescription">Job description</label>
+          <textarea id="editDescription" rows="4"></textarea>
+        </div>
+        <div class="field-group">
           <label for="editNotes">Notes</label>
-          <textarea id="editNotes" rows="4"></textarea>
+          <textarea id="editNotes" rows="3"></textarea>
         </div>
         <p id="editMessage" class="form-message" role="status" aria-live="polite"></p>
         <div class="dialog-actions">
@@ -213,7 +320,10 @@
 
     <footer><span>ApplyFlow</span><p>A simpler way to manage the job search.</p></footer>
   </div>
+
+  <!-- read text out of resumes: PDF and Word -->
   <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/mammoth@1.9.0/mammoth.browser.min.js"></script>
   <script type="module" src="script.js"></script>
 </body>
 </html>

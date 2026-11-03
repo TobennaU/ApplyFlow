@@ -14,6 +14,11 @@ async function requireUser() {
   return data.user
 }
 
+// Removes characters that would break a PostgREST filter string.
+function cleanTerm(text) {
+  return String(text ?? '').replace(/[,()%*\\]/g, ' ').trim()
+}
+
 // ---------- Auth ----------
 
 export async function signUp(email, password, name) {
@@ -42,6 +47,49 @@ export async function getProfile() {
   )
 }
 
+// ---------- Two-factor authentication (authenticator app codes) ----------
+
+// currentLevel is 'aal1' after a password sign-in and 'aal2' after a code.
+// If nextLevel is 'aal2' the user has 2FA on and still owes a code.
+export async function getMfaStatus() {
+  const { data: level, error } = await supabase.auth.mfa.getAuthenticatorAssuranceLevel()
+  if (error) throw new Error(error.message)
+  const { data: factors, error: factorError } = await supabase.auth.mfa.listFactors()
+  if (factorError) throw new Error(factorError.message)
+  return {
+    currentLevel: level.currentLevel,
+    nextLevel: level.nextLevel,
+    factors: factors.totp, // verified authenticator factors only
+  }
+}
+
+// Returns { id, totp: { qr_code, secret } } to show the user.
+export async function enrollTotp() {
+  // clear out any half-finished setup from earlier attempts
+  const { data: factors } = await supabase.auth.mfa.listFactors()
+  for (const factor of factors?.all ?? []) {
+    if (factor.factor_type === 'totp' && factor.status === 'unverified') {
+      await supabase.auth.mfa.unenroll({ factorId: factor.id })
+    }
+  }
+  return unwrap(
+    await supabase.auth.mfa.enroll({ factorType: 'totp', friendlyName: 'ApplyFlow authenticator' })
+  )
+}
+
+// Used both to finish setup and to answer a sign-in challenge.
+export async function verifyTotp(factorId, code) {
+  const { data: challenge, error } = await supabase.auth.mfa.challenge({ factorId })
+  if (error) throw new Error(error.message)
+  return unwrap(
+    await supabase.auth.mfa.verify({ factorId, challengeId: challenge.id, code })
+  )
+}
+
+export async function disableTotp(factorId) {
+  unwrap(await supabase.auth.mfa.unenroll({ factorId }))
+}
+
 // ---------- Applications ----------
 
 export async function listApplications(status = null) {
@@ -54,7 +102,8 @@ export async function listApplications(status = null) {
 }
 
 // fields: { job_title, company, location?, job_description?, notes?,
-//           application_status?, application_date?, job_listing_id? }
+//           application_status?, application_date?, job_listing_id?,
+//           interview_date?, follow_up_date? }
 export async function addApplication(fields) {
   const user = await requireUser()
   return unwrap(
@@ -88,30 +137,34 @@ export async function deleteApplication(id) {
 
 // ---------- Job listings ----------
 
-// Asks the 'fetch-jobs' Edge Function to pull new postings from Remotive
-// into job_listings. It skips the fetch if the listings are recent.
-export async function refreshJobs() {
-  const { error } = await supabase.functions.invoke('fetch-jobs')
-  if (error) throw new Error(error.message)
-}
-
-export async function listJobs({ search = '', limit = 20, source = '' } = {}) {
+// search matches title, company, and description; location matches the location text
+export async function listJobs({ search = '', location = '', limit = 20, source = '' } = {}) {
   let q = supabase
     .from('job_listings')
     .select('*')
     .order('created_at', { ascending: false })
     .limit(limit)
   if (source) q = q.eq('source', source)
-  if (search) q = q.or(`title.ilike.%${search}%,company.ilike.%${search}%`)
+
+  const place = cleanTerm(location)
+  if (place) q = q.ilike('location', `%${place}%`)
+
+  const term = cleanTerm(search)
+  if (term) {
+    q = q.or(`title.ilike.%${term}%,company.ilike.%${term}%,description.ilike.%${term}%`)
+  }
   return unwrap(await q)
 }
 
-
-// fields: { title, company, location?, description?, job_url?, source? }
-export async function addJob(fields) {
-  return unwrap(
-    await supabase.from('job_listings').insert(fields).select().single()
-  )
+// Asks the 'fetch-jobs' Edge Function to pull postings into job_listings.
+// With no keyword or location it refreshes only stale sources; with one it
+// runs a fresh search.
+export async function refreshJobs({ keyword = '', location = '' } = {}) {
+  const { data, error } = await supabase.functions.invoke('fetch-jobs', {
+    body: { keyword, location },
+  })
+  if (error) throw new Error(error.message)
+  return data
 }
 
 // ---------- Saved jobs ----------
@@ -144,16 +197,20 @@ export async function unsaveJob(jobListingId) {
 
 // ---------- Resumes ----------
 
+const DOCX_TYPE =
+  'application/vnd.openxmlformats-officedocument.wordprocessingml.document'
+
 export async function listResumes() {
   return unwrap(
     await supabase
       .from('resumes')
-      .select('id, file_name, file_path, uploaded_at')
+      .select('id, file_name, file_path, uploaded_at, parsed_text')
       .order('uploaded_at', { ascending: false })
   )
 }
 
-// pdf.js is loaded by a <script> tag in index.html and exposes pdfjsLib.
+// pdf.js and mammoth are loaded by <script> tags in index.html and
+// expose the globals pdfjsLib and mammoth.
 async function extractPdfText(file) {
   pdfjsLib.GlobalWorkerOptions.workerSrc =
     'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js'
@@ -168,24 +225,29 @@ async function extractPdfText(file) {
   return text.trim()
 }
 
+async function extractDocxText(file) {
+  const result = await mammoth.extractRawText({ arrayBuffer: await file.arrayBuffer() })
+  return result.value.trim()
+}
+
 // Uploads the file to the private 'resumes' bucket at <user_id>/<filename>
-// and saves a row in the resumes table. Text is extracted from PDFs and
-// .txt/.md files so the AI can read it; other formats save with no text.
+// and saves its row. PDF, Word (.docx), and plain text files are read so the
+// AI can use them. Uploading the same file name again replaces the old copy.
 export async function uploadResume(file, parsedText = null) {
   const user = await requireUser()
   const filePath = `${user.id}/${file.name}`
 
   if (parsedText === null) {
-    const isPlainText =
-      file.type.startsWith('text/') || /\.(txt|md)$/i.test(file.name)
-    if (isPlainText) {
-      parsedText = await file.text()
-    } else if (file.type === 'application/pdf') {
-      try {
+    try {
+      if (file.type === 'application/pdf' || /\.pdf$/i.test(file.name)) {
         parsedText = await extractPdfText(file)
-      } catch (err) {
-        console.error('PDF text extraction failed:', err)
+      } else if (file.type === DOCX_TYPE || /\.docx$/i.test(file.name)) {
+        parsedText = await extractDocxText(file)
+      } else if (file.type.startsWith('text/') || /\.(txt|md)$/i.test(file.name)) {
+        parsedText = await file.text()
       }
+    } catch (err) {
+      console.error('Could not read text from the resume:', err)
     }
   }
 
@@ -197,13 +259,17 @@ export async function uploadResume(file, parsedText = null) {
   return unwrap(
     await supabase
       .from('resumes')
-      .insert({
-        user_id: user.id,
-        file_name: file.name,
-        file_path: filePath,
-        parsed_text: parsedText,
-      })
-      .select('id, file_name, file_path, uploaded_at')
+      .upsert(
+        {
+          user_id: user.id,
+          file_name: file.name,
+          file_path: filePath,
+          parsed_text: parsedText || null,
+          uploaded_at: new Date().toISOString(),
+        },
+        { onConflict: 'user_id,file_path' }
+      )
+      .select('id, file_name, file_path, uploaded_at, parsed_text')
       .single()
   )
 }
@@ -230,7 +296,7 @@ export async function getResumeUrl(filePath, expiresInSeconds = 60) {
 // ---------- AI resume feedback ----------
 
 // Calls the 'analyze-resume' Edge Function, which saves its result to
-// resume_feedback. Returns { recommendations: { match_score, strengths, gaps, suggestions } }
+// resume_feedback. Returns the saved row: { recommendations, resume_id, created_at, ... }
 export async function getFeedback(resumeId, applicationId) {
   const { data, error } = await supabase.functions.invoke('analyze-resume', {
     body: { resume_id: resumeId, application_id: applicationId },
@@ -244,4 +310,14 @@ export async function getFeedback(resumeId, applicationId) {
     throw new Error(message)
   }
   return data
+}
+
+// Every saved feedback result for this user, newest first.
+export async function listFeedback() {
+  return unwrap(
+    await supabase
+      .from('resume_feedback')
+      .select('id, application_id, resume_id, recommendations, created_at')
+      .order('created_at', { ascending: false })
+  )
 }

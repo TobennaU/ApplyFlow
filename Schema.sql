@@ -233,3 +233,28 @@ create policy "resumes: update own files" on storage.objects
     bucket_id = 'resumes'
     and (select auth.uid())::text = (storage.foldername(name))[1]
   );
+
+
+
+-- 1. Reminders: an interview date and a follow-up date on each application
+alter table public.applications
+  add column if not exists interview_date date,
+  add column if not exists follow_up_date date;
+
+-- 2. Resumes: one row per file name per user.
+--    Re-uploading a file with the same name now replaces it instead of adding a duplicate.
+delete from public.resumes a
+using public.resumes b
+where a.user_id = b.user_id
+  and a.file_path = b.file_path
+  and a.uploaded_at < b.uploaded_at;
+
+alter table public.resumes
+  add constraint resumes_user_path_key unique (user_id, file_path);
+
+-- 3. Security: job listings are now written only by the fetch-jobs function
+--    (which uses the service role), so regular users no longer need insert access.
+drop policy if exists "job listings: insert" on public.job_listings;
+
+-- 4. Cleanup: match_results was part of the original design and nothing uses it.
+drop table if exists public.match_results;
