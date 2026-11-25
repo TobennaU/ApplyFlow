@@ -12,9 +12,7 @@ function json(body: unknown, status = 200) {
   });
 }
 
-// The job boards ask API users not to poll often, so listings are cached in
-// the job_listings table and a source is only refetched when its newest
-// listing is this old.
+
 const REFRESH_AFTER_HOURS = 12;
 
 function stripHtml(html: string) {
@@ -30,7 +28,6 @@ function stripHtml(html: string) {
     .trim();
 }
 
-// ---------- sources ----------
 
 async function fetchRemotive() {
   const response = await fetch("https://remotive.com/api/remote-jobs?limit=100");
@@ -49,8 +46,7 @@ async function fetchRemotive() {
     }));
 }
 
-// USAJOBS needs a free key, plus the email you registered it with.
-// If the secrets aren't set, this source is skipped and Remotive still works.
+
 async function fetchUsajobs() {
   const key = Deno.env.get("USAJOBS_API_KEY");
   const email = Deno.env.get("USAJOBS_USER_AGENT_EMAIL");
@@ -95,7 +91,7 @@ Deno.serve(async (req) => {
     const { data: { user } } = await userClient.auth.getUser();
     if (!user) return json({ error: "Not authenticated" }, 401);
 
-    // service role, because regular users can't write to job_listings in bulk
+    // service role
     const admin = createClient(
       Deno.env.get("SUPABASE_URL")!,
       Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!,
