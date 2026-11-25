@@ -19,7 +19,6 @@ function cleanTerm(text) {
   return String(text ?? '').replace(/[,()%*\\]/g, ' ').trim()
 }
 
-// ---------- Auth ----------
 
 export async function signUp(email, password, name) {
   return unwrap(
@@ -47,10 +46,8 @@ export async function getProfile() {
   )
 }
 
-// ---------- Two-factor authentication (authenticator app codes) ----------
 
-// currentLevel is 'aal1' after a password sign-in and 'aal2' after a code.
-// If nextLevel is 'aal2' the user has 2FA on and still owes a code.
+
 export async function getMfaStatus() {
   const { data: level, error } = await supabase.auth.mfa.getAuthenticatorAssuranceLevel()
   if (error) throw new Error(error.message)
@@ -59,13 +56,12 @@ export async function getMfaStatus() {
   return {
     currentLevel: level.currentLevel,
     nextLevel: level.nextLevel,
-    factors: factors.totp, // verified authenticator factors only
+    factors: factors.totp, 
   }
 }
 
 // Returns { id, totp: { qr_code, secret } } to show the user.
 export async function enrollTotp() {
-  // clear out any half-finished setup from earlier attempts
   const { data: factors } = await supabase.auth.mfa.listFactors()
   for (const factor of factors?.all ?? []) {
     if (factor.factor_type === 'totp' && factor.status === 'unverified') {
@@ -90,7 +86,6 @@ export async function disableTotp(factorId) {
   unwrap(await supabase.auth.mfa.unenroll({ factorId }))
 }
 
-// ---------- Applications ----------
 
 export async function listApplications(status = null) {
   let q = supabase
@@ -101,9 +96,7 @@ export async function listApplications(status = null) {
   return unwrap(await q)
 }
 
-// fields: { job_title, company, location?, job_description?, notes?,
-//           application_status?, application_date?, job_listing_id?,
-//           interview_date?, follow_up_date? }
+
 export async function addApplication(fields) {
   const user = await requireUser()
   return unwrap(
@@ -126,7 +119,6 @@ export async function updateApplication(id, changes) {
   )
 }
 
-// status: 'Applied' | 'Interview' | 'Offer' | 'Rejected'
 export function setApplicationStatus(id, status) {
   return updateApplication(id, { application_status: status })
 }
@@ -135,9 +127,7 @@ export async function deleteApplication(id) {
   unwrap(await supabase.from('applications').delete().eq('id', id))
 }
 
-// ---------- Job listings ----------
 
-// search matches title, company, and description; location matches the location text
 export async function listJobs({ search = '', location = '', limit = 20, source = '' } = {}) {
   let q = supabase
     .from('job_listings')
@@ -156,9 +146,7 @@ export async function listJobs({ search = '', location = '', limit = 20, source 
   return unwrap(await q)
 }
 
-// Asks the 'fetch-jobs' Edge Function to pull postings into job_listings.
-// With no keyword or location it refreshes only stale sources; with one it
-// runs a fresh search.
+
 export async function refreshJobs({ keyword = '', location = '' } = {}) {
   const { data, error } = await supabase.functions.invoke('fetch-jobs', {
     body: { keyword, location },
@@ -167,7 +155,6 @@ export async function refreshJobs({ keyword = '', location = '' } = {}) {
   return data
 }
 
-// ---------- Saved jobs ----------
 
 export async function listSavedJobs() {
   return unwrap(
@@ -195,7 +182,6 @@ export async function unsaveJob(jobListingId) {
   )
 }
 
-// ---------- Resumes ----------
 
 const DOCX_TYPE =
   'application/vnd.openxmlformats-officedocument.wordprocessingml.document'
@@ -209,8 +195,7 @@ export async function listResumes() {
   )
 }
 
-// pdf.js and mammoth are loaded by <script> tags in index.html and
-// expose the globals pdfjsLib and mammoth.
+
 async function extractPdfText(file) {
   pdfjsLib.GlobalWorkerOptions.workerSrc =
     'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js'
@@ -230,9 +215,7 @@ async function extractDocxText(file) {
   return result.value.trim()
 }
 
-// Uploads the file to the private 'resumes' bucket at <user_id>/<filename>
-// and saves its row. PDF, Word (.docx), and plain text files are read so the
-// AI can use them. Uploading the same file name again replaces the old copy.
+.
 export async function uploadResume(file, parsedText = null) {
   const user = await requireUser()
   const filePath = `${user.id}/${file.name}`
@@ -293,10 +276,8 @@ export async function getResumeUrl(filePath, expiresInSeconds = 60) {
   return data.signedUrl
 }
 
-// ---------- AI resume feedback ----------
 
-// Calls the 'analyze-resume' Edge Function, which saves its result to
-// resume_feedback. Returns the saved row: { recommendations, resume_id, created_at, ... }
+
 export async function getFeedback(resumeId, applicationId) {
   const { data, error } = await supabase.functions.invoke('analyze-resume', {
     body: { resume_id: resumeId, application_id: applicationId },
@@ -312,7 +293,6 @@ export async function getFeedback(resumeId, applicationId) {
   return data
 }
 
-// Every saved feedback result for this user, newest first.
 export async function listFeedback() {
   return unwrap(
     await supabase
